@@ -9,7 +9,6 @@
   "author": "Greg Thornton <xdissent@me.com> (http://xdissent.com)",
   "license": "MIT",
   "homepage": "https://github.com/xdissent/node-resampler",
-  "main": "./lib/index.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/xdissent/node-resampler.git"
@@ -17,11 +16,7 @@
   "bugs": {
     "url": "https://github.com/xdissent/node-resampler/issues"
   },
-  "dependencies": {},
-  "devDependencies": {
-    "coffee-script": ">= 1.6.2"
-  },
-  "scripts": {
-    "prepublish": "coffee -cbo lib src"
+  "dependencies": {
+    "nan": "^2.2.0"
   }
 }

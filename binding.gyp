@@ -1,9 +1,16 @@
 {
-  "targets": [
+  'targets': [
     {
-      "target_name": "binding",
-      "sources": [ "binding.cc", "resampler.cc" ],
-      "libraries": [ "-lresample" ]
+      'target_name': 'resampler',
+      'include_dirs': [
+        "<!(node -e \"require('nan')\")"
+      ],
+      'sources': [
+        'resampler.cc'
+      ],
+      'libraries': [
+        '-lresample'
+      ]
     }
   ]
 }

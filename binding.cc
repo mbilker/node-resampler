@@ -6,7 +6,7 @@ using namespace node;
 
 namespace resampler {
 
-void Init(Handle<Object> exports) {
+void Init(Local<Object> exports) {
   Resampler::Init(exports);
 }
 
