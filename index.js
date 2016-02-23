@@ -1,4 +1,4 @@
-const binding = require('./build/Release/resampler');
+const binding = require('./build/Debug/resampler');
 const stream = require('stream');
 const util = require('util');
 
@@ -25,7 +25,7 @@ Resampler.prototype._resample = function _resample(samples, callback) {
 };
 
 Resampler.prototype._transform = function _transform(chunk, encoding, callback) {
-  if (this.resampler.openened) {
+  if (this.resampler.opened) {
     return this._resample(chunk, callback);
   }
 

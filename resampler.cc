@@ -25,25 +25,7 @@ class ResamplerWorker : public AsyncWorker {
 
 class Resampler : public Nan::ObjectWrap {
 public:
-  static NAN_MODULE_INIT(Init) {
-    Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>(New);
-    tpl->SetClassName(Nan::New("Resampler").ToLocalChecked());
-    tpl->InstanceTemplate()->SetInternalFieldCount(1);
-
-    tpl->PrototypeTemplate()->Set(Nan::New<String>("open").ToLocalChecked(),
-        Nan::New<FunctionTemplate>(Open)->GetFunction());
-    tpl->PrototypeTemplate()->Set(Nan::New<String>("close").ToLocalChecked(),
-        Nan::New<FunctionTemplate>(Close)->GetFunction());
-    tpl->PrototypeTemplate()->Set(Nan::New<String>("resample").ToLocalChecked(),
-        Nan::New<FunctionTemplate>(Resample)->GetFunction());
-    tpl->PrototypeTemplate()->Set(Nan::New<String>("flush").ToLocalChecked(),
-        Nan::New<FunctionTemplate>(Flush)->GetFunction());
-
-    //tpl->PrototypeTemplate()->SetAccessor(Nan::New<String>("opened"), OpenedGetter);
-
-    //constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
-    Nan::Set(target, Nan::New("Resampler").ToLocalChecked(), Nan::GetFunction(tpl).ToLocalChecked());
-  }
+  static NAN_MODULE_INIT(Init);
 
 protected:
   Resampler() : ObjectWrap(),
@@ -73,28 +55,28 @@ protected:
   struct Baton {
     uv_work_t request;      // Work request
     Resampler* rs;   // Resampler instance to work on
-    Nan::Callback callback;
+    v8::Persistent<v8::Function> callback;
 
-    Baton(Resampler* rs_, Handle<Function> cb_) : rs(rs_) {
+    Baton(Resampler* rs_, v8::Handle<v8::Function> cb_) : rs(rs_) {
       rs->Ref();
       request.data = this;
-      callback.SetFunction(cb_);
+      callback.Reset(v8::Isolate::GetCurrent(), cb_);
     }
     virtual ~Baton() {
       rs->Unref();
-      //callback.Reset();
+      callback.Reset();
     }
   };
 
   struct ResampleBaton : Baton {
-    char* inPtr;
+    char *inPtr;
     size_t inLength;
 
     v8::Persistent<v8::Object, v8::CopyablePersistentTraits<v8::Object>> outBuffer;
-    char* outPtr;
+    char *outPtr;
     size_t outLength;
 
-    char* prefix;
+    char *prefix;
     size_t prefixLength;
 
     ResampleBaton(Resampler* rs_, Handle<Function> cb_, char* inBuffer_, int inBufferLength_, char* prefix_, int prefixLength_) :
@@ -104,14 +86,14 @@ protected:
       if (inBufferLength_ > 0 && inBuffer_ != NULL) {
         // Persist the input buffer and save pointer
         inLength = inBufferLength_;
-        inPtr = (char*)malloc(inLength);
+        inPtr = static_cast<char *>(malloc(inLength));
         memcpy(inPtr, inBuffer_, inLength);
       }
 
       if (prefixLength_ > 0 && prefix_ != NULL) {
         // Copy prefix
         prefixLength = prefixLength_;
-        prefix = (char*)malloc(prefixLength);
+        prefix = static_cast<char *>(malloc(prefixLength));
         memcpy(prefix, prefix_, prefixLength);
       }
 
@@ -127,7 +109,7 @@ protected:
       }
     }
     virtual ~ResampleBaton() {
-      if (inPtr != NULL) free(inPtr);
+      //if (inPtr != NULL) free(inPtr);
       if (outPtr != NULL) outBuffer.Reset();
       if (prefix != NULL) free(prefix);
     }
@@ -224,11 +206,11 @@ protected:
 
     // Initialize leftovers if we haven't yet.
     if (rs->leftovers == NULL) {
-      rs->leftovers = (char*)malloc(RS_SAMPLE_BYTES);
+      rs->leftovers = static_cast<char *>(malloc(RS_SAMPLE_BYTES));
       rs->leftoversLength = 0;
     }
 
-    char* chunkPtr = Buffer::Data(info[0]);
+    char *chunkPtr = Buffer::Data(info[0]);
     size_t chunkLength = Buffer::Length(info[0]);
 
     int totalLength = chunkLength + rs->leftoversLength;
@@ -261,7 +243,8 @@ protected:
     }
 
     rs->resampling = true;
-    BeginResample(baton);
+
+    uv_queue_work(uv_default_loop(), &baton->request, DoResample, (uv_after_work_cb)AfterResample);
 
     info.GetReturnValue().Set(info.Holder());
   }
@@ -288,21 +271,15 @@ protected:
     info.GetReturnValue().Set(Nan::New<v8::Boolean>(rs->opened));
   }
 
-  static void BeginResample(Baton* baton) {
-    uv_queue_work(uv_default_loop(), &baton->request, DoResample, (uv_after_work_cb)AfterResample);
-  }
-
-  static void DoResample(uv_work_t* req) {
-    Nan::HandleScope scope;
-
-    ResampleBaton* baton = static_cast<ResampleBaton*>(req->data);
-    Resampler* rs = baton->rs;
+  static void DoResample(uv_work_t *req) {
+    ResampleBaton *baton = static_cast<ResampleBaton*>(req->data);
+    Resampler *rs = baton->rs;
 
     // Write prefix
     if (baton->prefix != NULL) {
       size_t inBytes = RS_SAMPLE_BYTES - (baton->prefixLength % RS_SAMPLE_BYTES);
       size_t tmpBufferLength = baton->prefixLength + inBytes;
-      char* tmpBuffer = (char*)malloc(tmpBufferLength);
+      char *tmpBuffer = static_cast<char *>(malloc(tmpBufferLength));
       memcpy(tmpBuffer, baton->prefix, baton->prefixLength);
 
       if (inBytes > 0) {
@@ -359,7 +336,7 @@ protected:
       //outBuffer = slice->Call(baton->outBuffer, 2, sliceArgs)->ToObject();
       v8::Local<v8::Object> batonOutBuffer = Nan::New(baton->outBuffer);
       size_t outLength = node::Buffer::Length(batonOutBuffer) - baton->outLength;
-      char* data = node::Buffer::Data(batonOutBuffer);
+      char *data = node::Buffer::Data(batonOutBuffer);
       outBuffer = Nan::CopyBuffer(data, outLength).ToLocalChecked();
     } else {
       outBuffer = Nan::NewBuffer(0).ToLocalChecked();
@@ -368,7 +345,8 @@ protected:
     Local<Value> argv[2] = { Nan::Null(), outBuffer };
 
     rs->resampling = false;
-    TRY_CATCH_CALL(rs->handle(), baton->callback.GetFunction(), 2, argv);
+    TRY_CATCH_CALL(rs->handle(), baton->callback, 2, argv);
+
     delete baton;
   }
 
@@ -377,8 +355,6 @@ protected:
   }
 
   static void DoFlush(uv_work_t* req) {
-    Nan::HandleScope scope;
-
     FlushBaton* baton = static_cast<FlushBaton*>(req->data);
     Resampler* rs = baton->rs;
 
@@ -404,26 +380,44 @@ protected:
     //Local<Object> outBuffer = slice->Call(baton->outBuffer, 2, sliceArgs)->ToObject();
 
     v8::Local<v8::Object> batonOutBuffer = Nan::New(baton->outBuffer);
-    char* origBufferData = node::Buffer::Data(batonOutBuffer);
+    char *origBufferData = node::Buffer::Data(batonOutBuffer);
     size_t origOutLength = node::Buffer::Length(batonOutBuffer) - baton->outLength;
     v8::Local<v8::Object> outBuffer = Nan::CopyBuffer(origBufferData, origOutLength).ToLocalChecked();
     v8::Local<v8::Value> argv[2] = { Nan::Null(), outBuffer };
 
     rs->flushing = false;
-    TRY_CATCH_CALL(rs->handle(), baton->callback.GetFunction(), 2, argv);
+    TRY_CATCH_CALL(rs->handle(), baton->callback, 2, argv);
     delete baton;
   }
 
-  void* resampleHandle;
+  void *resampleHandle;
   bool opened;
   bool resampling;
   bool flushing;
   bool closing;
   double factor;
   int quality;
-  char* leftovers;
+  char *leftovers;
   int leftoversLength;
 };
+
+NAN_MODULE_INIT(Resampler::Init) {
+  Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>(New);
+  tpl->SetClassName(Nan::New("Resampler").ToLocalChecked());
+  tpl->InstanceTemplate()->SetInternalFieldCount(1);
+
+  tpl->PrototypeTemplate()->Set(Nan::New<String>("open").ToLocalChecked(),
+    Nan::New<FunctionTemplate>(Open)->GetFunction());
+  tpl->PrototypeTemplate()->Set(Nan::New<String>("close").ToLocalChecked(),
+    Nan::New<FunctionTemplate>(Close)->GetFunction());
+  tpl->PrototypeTemplate()->Set(Nan::New<String>("resample").ToLocalChecked(),
+    Nan::New<FunctionTemplate>(Resample)->GetFunction());
+  tpl->PrototypeTemplate()->Set(Nan::New<String>("flush").ToLocalChecked(),
+    Nan::New<FunctionTemplate>(Flush)->GetFunction());
+
+  Nan::SetAccessor(tpl->InstanceTemplate(), Nan::New<String>("opened").ToLocalChecked(), OpenedGetter, 0);
+  Nan::Set(target, Nan::New("Resampler").ToLocalChecked(), Nan::GetFunction(tpl).ToLocalChecked());
+}
 
 void NodeInit(Handle<Object> exports) {
   Resampler::Init(exports);

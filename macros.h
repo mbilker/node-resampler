@@ -43,7 +43,8 @@
 
 #define TRY_CATCH_CALL(context, callback, argc, argv)                          \
 {   Nan::TryCatch try_catch;                                                   \
-    Nan::Call((callback), (context), (argc), (argv));                          \
+    v8::Local<v8::Function>::New(v8::Isolate::GetCurrent(), (callback))        \
+      ->Call((context), (argc), (argv));                                       \
     if (try_catch.HasCaught()) {                                               \
         Nan::FatalException(try_catch);                                        \
     }                                                                          \
