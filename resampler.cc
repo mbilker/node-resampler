@@ -13,6 +13,15 @@
 
 using namespace v8;
 using namespace node;
+/*
+*/
+
+/*
+class ResamplerWorker : public AsyncWorker {
+  public:
+    ResamplerWorker(Resampler *rs, Callback *callback, char* inBuffer, int inBufferLength, char* prefix_, int prefixLength) : AsyncWorker(callback), 
+};
+*/
 
 class Resampler : public Nan::ObjectWrap {
 public:
@@ -78,7 +87,6 @@ protected:
   };
 
   struct ResampleBaton : Baton {
-    Nan::Persistent<v8::Object> inBuffer;
     char* inPtr;
     size_t inLength;
 
@@ -126,7 +134,7 @@ protected:
   };
 
   struct FlushBaton : Baton {
-    Nan::Persistent<v8::Object> outBuffer;
+    v8::Persistent<v8::Object, v8::NonCopyablePersistentTraits<v8::Object>> outBuffer;
     char* outPtr;
     size_t outLength;
 
@@ -138,7 +146,7 @@ protected:
       outLength = rs->factor * RS_BUFFER_PAD;
 
       v8::Local<v8::Object> localOutBuffer = Nan::NewBuffer(outLength).ToLocalChecked();
-      outBuffer = Nan::Persistent<v8::Object>(localOutBuffer);
+      outBuffer = v8::Persistent<v8::Object, v8::NonCopyablePersistentTraits<v8::Object>>(v8::Isolate::GetCurrent(), localOutBuffer);
       outPtr = Buffer::Data(localOutBuffer);
     }
     virtual ~FlushBaton() {
