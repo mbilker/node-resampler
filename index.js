@@ -1,14 +1,15 @@
-const binding = require('./build/Release/binding'
-const stream = require('stream'
+const binding = require('./build/Release/resampler');
+const stream = require('stream');
+const util = require('util');
 
 function Resampler(inputRate, outputRate, quality) {
-    if (quality == null) {
-      quality = Resampler.QUALITY_HI;
-    }
+  if (quality == null) {
+    quality = Resampler.QUALITY_HI;
+  }
 
-    stream.Transform.call(this);
+  stream.Transform.call(this);
 
-    this.resampler = new binding.Resampler(inputRate, outputRate, quality);
+  this.resampler = new binding.Resampler(inputRate, outputRate, quality);
 }
 util.inherits(Resampler, stream.Transform);
 
@@ -28,7 +29,7 @@ Resampler.prototype._transform = function _transform(chunk, encoding, callback) 
     return this._resample(chunk, callback);
   }
 
-  this.resampler.open((err) =>
+  this.resampler.open((err) => {
     if (err != null) {
       throw err;
     }
@@ -53,7 +54,7 @@ Resampler.prototype._flush = function _flush(callback) {
         throw err;
       }
 
-      callback()
+      callback();
     });
   });
 };

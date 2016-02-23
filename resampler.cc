@@ -90,7 +90,7 @@ protected:
     char* inPtr;
     size_t inLength;
 
-    Nan::Persistent<v8::Object> outBuffer;
+    v8::Persistent<v8::Object, v8::CopyablePersistentTraits<v8::Object>> outBuffer;
     char* outPtr;
     size_t outLength;
 
@@ -122,7 +122,7 @@ protected:
         // Create outBuffer based on factor + pad and save pointer
         outLength = totalLength * rs->factor + RS_BUFFER_PAD;
         v8::Local<v8::Object> localOutBuffer = Nan::NewBuffer(outLength).ToLocalChecked();
-        outBuffer = Nan::Persistent<v8::Object>(localOutBuffer);
+        outBuffer.Reset(v8::Isolate::GetCurrent(), localOutBuffer);
         outPtr = Buffer::Data(localOutBuffer);
       }
     }
@@ -134,7 +134,7 @@ protected:
   };
 
   struct FlushBaton : Baton {
-    v8::Persistent<v8::Object, v8::NonCopyablePersistentTraits<v8::Object>> outBuffer;
+    v8::Persistent<v8::Object, v8::CopyablePersistentTraits<v8::Object>> outBuffer;
     char* outPtr;
     size_t outLength;
 
@@ -146,7 +146,7 @@ protected:
       outLength = rs->factor * RS_BUFFER_PAD;
 
       v8::Local<v8::Object> localOutBuffer = Nan::NewBuffer(outLength).ToLocalChecked();
-      outBuffer = v8::Persistent<v8::Object, v8::NonCopyablePersistentTraits<v8::Object>>(v8::Isolate::GetCurrent(), localOutBuffer);
+      outBuffer.Reset(v8::Isolate::GetCurrent(), localOutBuffer);
       outPtr = Buffer::Data(localOutBuffer);
     }
     virtual ~FlushBaton() {
