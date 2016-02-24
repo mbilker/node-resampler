@@ -17,6 +17,8 @@
     "url": "https://github.com/xdissent/node-resampler/issues"
   },
   "dependencies": {
-    "nan": "^2.2.0"
+    "debug": "^2.2.0",
+    "nan": "^2.2.0",
+    "speaker": "^0.2.6"
   }
 }
